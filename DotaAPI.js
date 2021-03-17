@@ -1,7 +1,8 @@
 //API: https://docs.opendota.com/#section/Introduction
-
+const myID = 1986753
 const fetch = require('node-fetch');
 var matchIDList = [];
+var playerIDList = [];
 
 var options = {
     'method': 'GET',
@@ -11,11 +12,16 @@ var options = {
   };
 
   //gets recent match history
-async function GetMatchData(){
-  const response = await fetch('https://api.opendota.com/api/players/1986753/recentMatches', options);
-  return response.json();
-}
-
+  async function GetMatchData(){
+    const response = await fetch('https://api.opendota.com/api/players/' + myID + '/recentMatches', options);
+    return response.json();
+  }
+  
+  //get details from a single match
+  async function getMatchDetails(match_id){
+    const response = await fetch('https://api.opendota.com/api/matches/' + match_id, options)
+    return response.json();
+  }
 
 function printData(data){
     console.log(data)
@@ -32,12 +38,16 @@ function printArray(arr){
 function parseMatchIDs(data){
     data.forEach(element => {
         matchIDList.push(element.match_id);
-    });
+    })
 }
 
 
-function ParsePlayerIDs(data){
-
+//get player IDs from a match
+function ParsePlayerIDs(){
+  matchIDList.forEach(element => {
+    getMatchDetails(element)
+  }
+    )
 }
 
 GetMatchData().then(data => {
