@@ -1,10 +1,22 @@
 //API: https://docs.opendota.com/#section/Introduction
 const myID = 1986753
 const fetch = require('node-fetch');
+const Queue = require('./queue')
+
 let matchIDList = [];
 let matchDetailsList = []
 let playerIDList = [];
 let WL = []
+
+let players = [];
+
+let jobQueue = new Queue();
+let blocks = 30;
+
+
+let minGames = 1500;
+let minWinRate = 0.6;
+let smurfs = 0;
 
 const options = {
     'method': 'GET',
@@ -14,25 +26,28 @@ const options = {
 };
 
 async function sleep(msec) {
+    console.log("Sleeping for " + msec/1000 + " seconds")
     return new Promise(resolve => setTimeout(resolve, msec));
 }
 
 //gets recent match history
 async function GetMatchData() {
-    const response = await fetch('https://api.opendota.com/api/players/' + myID + '/recentMatches', options);
+    const response = await fetch(`https://api.opendota.com/api/players/${myID}/recentMatches`, options);
     return response.json();
 }
 
 //get details from a single match
 async function getMatchDetails(match_id) {
-    const response = await fetch('https://api.opendota.com/api/matches/' + match_id, options)
+    const response = await fetch(`https://api.opendota.com/api/matches/${match_id}`, options)
     return response.json();
 }
 
+async function enqueueAPI(data){
+    queue.push(data);
+}
+
 async function getPlayerWinrate(){
-    console.log("Sleeping for 15 sec...")
-    await sleep(15000);
-    console.log("15 seconds is over")
+    //await sleep(15000);
     for (const PID of playerIDList) {
         const response = await fetch(`https://api.opendota.com/api/players/${PID}/wl?lobby_type=7`, options)
         const data = await response.json()
@@ -60,6 +75,31 @@ function parseMatchIDs(data) {
 }
 
 
+
+function combineData(){
+    let playerInfo = [];
+
+    for(const player of WL){
+        let wins = WL.win;
+        let losses = WL.lose;
+
+        let curPlayer = {
+            "Wins" : wins,
+            "Losses" : losses,
+            "Games" : wins + losses
+        }
+        playerInfo.push(curPlayer)
+    }
+    return playerInfo;
+}
+
+function judgePlayer(player){
+    let winRate = player.wins/player.Matches
+    if(player.Matches <= minGames && winRate >= minWinRate){
+        smurfs++;
+    }
+}
+
 //get player IDs from a match
 async function ParsePlayerIDs() {
     for (const match of matchIDList) {
@@ -83,6 +123,8 @@ GetMatchData().then(data => {
     parseMatchIDs(data)
     printArray(matchIDList)
     ParsePlayerIDs()
+    .then(sleep(6000))
     .then(() => getPlayerWinrate())
     .then(() => console.log(WL))
+    
 })
