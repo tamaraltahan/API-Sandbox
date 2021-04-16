@@ -7,8 +7,7 @@ let matchIDList = [];
 let matchDetailsList = []
 let playerIDList = [];
 let WL = []
-
-let players = [];
+let Players = []
 
 let jobQueue = new Queue();
 let blocks = 30;
@@ -18,43 +17,16 @@ let minGames = 1500;
 let minWinRate = 0.6;
 let smurfs = 0;
 
+let allWinRates = [];
+let allGames = [];
+let n = 0;
+
 const options = {
     'method': 'GET',
     'headers': {
         'Accept': 'application/json'
     }
 };
-
-async function sleep(msec) {
-    console.log("Sleeping for " + msec/1000 + " seconds")
-    return new Promise(resolve => setTimeout(resolve, msec));
-}
-
-//gets recent match history
-async function GetMatchData() {
-    const response = await fetch(`https://api.opendota.com/api/players/${myID}/recentMatches`, options);
-    return response.json();
-}
-
-//get details from a single match
-async function getMatchDetails(match_id) {
-    const response = await fetch(`https://api.opendota.com/api/matches/${match_id}`, options)
-    return response.json();
-}
-
-async function enqueueAPI(data){
-    queue.push(data);
-}
-
-async function getPlayerWinrate(){
-    //await sleep(15000);
-    for (const PID of playerIDList) {
-        const response = await fetch(`https://api.opendota.com/api/players/${PID}/wl?lobby_type=7`, options)
-        const data = await response.json()
-        WL.push(data)
-    }
-    return WL
-}
 
 function printData(data) {
     console.log(data)
@@ -67,6 +39,44 @@ function printArray(arr) {
     });
 }
 
+async function sleep(msec) {
+    console.log("Sleeping for " + msec/1000 + " seconds")
+    return new Promise(resolve => setTimeout(resolve, msec));
+}
+
+//1
+//gets recent match history
+async function GetMatchData() {
+    const response = await fetch(`https://api.opendota.com/api/players/${myID}/recentMatches`, options);
+    return response.json();
+}
+
+//3.1
+//get details from a single match
+async function getMatchDetails(match_id) {
+    const response = await fetch(`https://api.opendota.com/api/matches/${match_id}`, options)
+    return response.json();
+}
+
+//no idea how to do this, actually.
+async function enqueueAPI(data){
+    queue.push(data);
+}
+
+//4
+//Return array of players wins and losses
+async function getPlayerWinrate(){
+    //await sleep(15000);
+    for (const PID of playerIDList) {
+        const response = await fetch(`https://api.opendota.com/api/players/${PID}/wl?lobby_type=7`, options)
+        const data = await response.json()
+        if(!data.error)
+        WL.push(data)
+    }
+    return WL
+}
+
+//2
 //get match IDs from recent matches
 function parseMatchIDs(data) {
     data.forEach(element => {
@@ -74,32 +84,62 @@ function parseMatchIDs(data) {
     })
 }
 
-
-
 function combineData(){
-    let playerInfo = [];
-
     for(const player of WL){
-        let wins = WL.win;
-        let losses = WL.lose;
+        //console.log(player)
+        const wins = player.win;
+        const losses = player.lose;
 
-        let curPlayer = {
-            "Wins" : wins,
-            "Losses" : losses,
-            "Games" : wins + losses
+        const curPlayer = {
+            games : wins + losses,
+            wins : wins,
+            losses : losses  
         }
-        playerInfo.push(curPlayer)
-    }
-    return playerInfo;
-}
-
-function judgePlayer(player){
-    let winRate = player.wins/player.Matches
-    if(player.Matches <= minGames && winRate >= minWinRate){
-        smurfs++;
+        console.log(curPlayer)
+        Players.push(curPlayer)
     }
 }
 
+function judgePlayers(){
+    for(const player of Players){
+        let w = player.wins;
+        let l = player.losses;
+        let g = l + w;
+
+        let winrate = w/g;
+
+        allWinRates.push(winrate);
+        allGames.push(g);
+        n++;
+
+        //judge player, niave implementation
+        if(winrate > minWinRate || g <= minGames){
+            smurfs++;
+        }
+    }
+}
+
+function computeAverages(){
+    let gamesSum = 0;
+    let WRSum = 0;
+
+    for(let i = 0; i < n; ++i){
+        gamesSum += allGames[i];
+        WRSum += allWinRates[i];
+    }
+
+    const avgGames = gamesSum / n;
+    const avgWR = WRSum / n;
+
+    const avgData = {
+        games : avgGames,
+        winrate : avgWR
+    }
+
+    console.log(avgData)
+}
+
+//3
 //get player IDs from a match
 async function ParsePlayerIDs() {
     for (const match of matchIDList) {
@@ -123,8 +163,12 @@ GetMatchData().then(data => {
     parseMatchIDs(data)
     printArray(matchIDList)
     ParsePlayerIDs()
-    .then(sleep(6000))
+    //.then(sleep(15000))
     .then(() => getPlayerWinrate())
     .then(() => console.log(WL))
+    .then(() => combineData())
+    .then(() => judgePlayers())
+    .then(() => console.log("Suspected Smurfs: " + smurfs))
+    .then(() => console.log(computeAverages()))
     
 })
